@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
-import os, threading, re, sys, time, math, unicodedata
+import os, threading, re, sys, time
 
 from board import SCL, SDA
 import busio
 import adafruit_ssd1306
 import subprocess
+
+from gpiozero import Button
 
 # Import Python Imaging Library
 from PIL import Image, ImageDraw, ImageFont
@@ -47,17 +49,17 @@ bottom = height - padding
 # for drawing shapes.
 x = 0
 
-font = ImageFont.load_default()
+#font = ImageFont.load_default()
 # Load nice silkscreen font
-# font = ImageFont.truetype('/usr/src/app/slkscr.ttf', 8)
+font = ImageFont.truetype('./slkscr.ttf', 8)
 
 DISPLAY_TIME = 20
 SLEEP = 0.1
 
 # display a warning if not root
-# if os.getuid() != 0:
-#     print("Error: need to be root to access.")
-#     sys.exit(2)
+if os.getuid() != 0:
+    print("Error: need to be root to access.")
+    sys.exit(2)
 
 
 class Metadata(threading.Thread):
@@ -97,37 +99,35 @@ class Metadata(threading.Thread):
             print("Error:", error)
             sys.exit(1)
 
-# ------------------------------------------------------- #
-
-class Countdown():
-    def __init__(self,seconds):
-        self.timeout = seconds
-        self.timer = time.time() + self.timeout
-
-    def reset_countdown(self):
-        self.timer = time.time() + self.timeout
-
-    def is_elapsed(self):
-        if time.time() > self.timer:
-            return True
-        else:
-            return False
-
-    def remaining(self):
-        return math.floor(self.timer - time.time())
-
-# ------------------------------------------------------- #
-
 
 def turn_off_display():
     disp.fill(0)
     disp.show()
 
+message = ""
+
+def when_pressed():
+    global message
+    message = "will shutdown in 6s"
+
+def when_released():
+    global message
+    message = ""
+
+def shutdown():
+    print("shutdown")
+    os.system("sudo poweroff")
+
+
+# https://gpiozero.readthedocs.io/en/stable/recipes.html#pin-numbering
+btn = Button(23, hold_time=6)
+btn.when_held = shutdown
+btn.when_pressed = when_pressed
+btn.when_released = when_released
+
 def main():
     m = Metadata() # setup metadata reader process
     m.start() # start the process
-
-    display_timer = Countdown(DISPLAY_TIME)
 
     # Shell scripts for system monitoring from here:
     # https://unix.stackexchange.com/questions/119126/command-to-display-memory-usage-disk-usage-and-cpu-load
@@ -148,7 +148,7 @@ def main():
     disp.image(image)
     disp.show()
 
-    time.sleep(10)
+    time.sleep(5)
 
     # main loop, catch Ctrl+C to exit gracefully
     try:
@@ -162,6 +162,9 @@ def main():
                 draw.text((x, top+8),     str(metadata['Title']), font=font, fill=255)
                 draw.text((x, top+16),    str(metadata['Artist']),  font=font, fill=255)
                 draw.text((x, top+25),    str(metadata['Album Name']),  font=font, fill=255)
+
+            if message:
+                draw.text((x, top), str(message), font=font, fill=255)
 
             disp.image(image)
             disp.show()
