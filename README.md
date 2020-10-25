@@ -28,7 +28,7 @@ https://learn.adafruit.com/adafruit-pioled-128x32-mini-oled-for-raspberry-pi/usa
 
 
 ```
-sudo python3 /home/pi/winecase/display.py &
+sudo python3 /home/pi/winecase/display.py & > /home/pi/winecase/log.txt 2>&1
 ```
 
 

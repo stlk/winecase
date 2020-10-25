@@ -51,7 +51,7 @@ x = 0
 
 #font = ImageFont.load_default()
 # Load nice silkscreen font
-font = ImageFont.truetype('./slkscr.ttf', 8)
+font = ImageFont.truetype('/home/pi/winecase/slkscr.ttf', 8)
 
 DISPLAY_TIME = 20
 SLEEP = 0.1
