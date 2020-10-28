@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 
-import os, threading, re, sys, time
+import json
+import os
+import re
+import subprocess
+import sys
+import threading
+import time
 
+from PIL import Image, ImageDraw, ImageFont
+import adafruit_ssd1306
 from board import SCL, SDA
 import busio
-import adafruit_ssd1306
-import subprocess
-
 from gpiozero import Button
-
-# Import Python Imaging Library
-from PIL import Image, ImageDraw, ImageFont
+import paho.mqtt.client as mqtt
 
 # Create the I2C interface.
 i2c = busio.I2C(SCL, SDA)
@@ -106,19 +109,57 @@ def turn_off_display():
 
 message = ""
 
+light_power = True
+
+def on_message(client, userdata, message):
+    global light_power
+    topic = message.topic
+    value = str(message.payload.decode("utf-8"))
+    print("received message: ", topic, value)
+
+    if topic == "homie/d550fe00/light/power":
+        light_power = value == "true"
+
+def on_connect(client, userdata, flags, rc):
+    print("Connected with result code "+str(rc))
+    client.subscribe("homie/d550fe00/light/power")
+
+username = os.environ.get("MQTT_USERNAME")
+password = os.environ.get("MQTT_PASSWORD")
+
+client = mqtt.Client("winecase")
+client.tls_set()
+client.username_pw_set(username, password)
+client.connect("m20.cloudmqtt.com", port=20685) 
+
+client.on_connect = on_connect
+client.on_message = on_message
+
+client.loop_start()
+
 def when_pressed():
     global message
     message = "will shutdown in 6s"
 
-def when_released():
+def when_released(btn):
     global message
+    global light_power
     message = ""
+    if not btn.was_held:
+        light_power = not light_power
+        client.publish("homie/d550fe00/light/power/set", json.dumps(light_power))
+        return
+    btn.was_held = False
 
-def shutdown():
     print("shutdown")
+    turn_off_display()
+    client.loop_stop()
     os.system("sudo poweroff")
 
+def shutdown(btn):
+    btn.was_held = True
 
+Button.was_held = False
 # https://gpiozero.readthedocs.io/en/stable/recipes.html#pin-numbering
 btn = Button(23, hold_time=6)
 btn.when_held = shutdown
@@ -174,6 +215,7 @@ def main():
 
     except KeyboardInterrupt:
         turn_off_display()
+        client.loop_stop()
         sys.exit(0)
 
 # ------------------------------------------------------- #
